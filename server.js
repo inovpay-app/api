@@ -2,7 +2,6 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 require('dotenv').config();
-console.log('JWT_SECRET:', process.env.JWT_SECRET);
 
 const app = express();
 app.use(express.json());
@@ -23,7 +22,6 @@ app.post('/auth/token', (req, res) => {
   }
 
   const token = jwt.sign({ client_id }, JWT_SECRET, { expiresIn: '1h' });
-  console.log('Token gerado:', token);
   
   res.json({
     access_token: token,
