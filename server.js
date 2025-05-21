@@ -49,9 +49,6 @@ function authenticate(req, res, next) {
 }
 
 // Função para obter token da Paytime (com cache)
-let cachedToken = null;
-let tokenExpiresAt = null;
-
 async function getPaytimeToken() {
   const now = Date.now();
 
@@ -70,11 +67,16 @@ async function getPaytimeToken() {
     'content-type': 'application/json'
   };
 
-  const response = await axios.post(process.env.PAYTIME_LOGIN_URL, loginPayload, { headers });
+  const PAYTIME_LOGIN_URL = 'https://api.sandbox.paytime.com.br/v1/auth/login';
+
+  const response = await axios.post(PAYTIME_LOGIN_URL, loginPayload, { headers });
 
   const token = response.data?.token || response.data?.access_token;
 
-  if (!token) throw new Error('Token não retornado pela Paytime');
+  if (!token) {
+    console.error('Resposta da Paytime:', response.data);
+    throw new Error('Token não retornado pela Paytime');
+  }
 
   // Cache token por 50 minutos
   cachedToken = token;
@@ -82,6 +84,7 @@ async function getPaytimeToken() {
 
   return token;
 }
+
 
 // Proxy "cego" para chamadas à Paytime protegidas pela autenticação local
 app.use('/paytime', authenticate, async (req, res) => {
