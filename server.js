@@ -23,7 +23,8 @@ app.post('/auth/token', (req, res) => {
   }
 
   const token = jwt.sign({ client_id }, JWT_SECRET, { expiresIn: '1h' });
-
+  console.log('Token gerado:', token);
+  
   res.json({
     access_token: token,
     token_type: 'Bearer',
