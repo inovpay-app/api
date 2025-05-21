@@ -6,6 +6,7 @@ require('dotenv').config();
 const app = express();
 app.use(express.json());
 
+// Clientes locais para autenticação
 const CLIENTS = {
   'cliente123': 'segredo456',
   'clienteTest': 'senhaSegura'
@@ -13,7 +14,7 @@ const CLIENTS = {
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// === Autenticação local (client_id e client_secret) ===
+// === Autenticação local - gera JWT para cliente ===
 app.post('/auth/token', (req, res) => {
   const { client_id, client_secret } = req.body;
 
@@ -22,7 +23,7 @@ app.post('/auth/token', (req, res) => {
   }
 
   const token = jwt.sign({ client_id }, JWT_SECRET, { expiresIn: '1h' });
-  
+
   res.json({
     access_token: token,
     token_type: 'Bearer',
@@ -30,7 +31,7 @@ app.post('/auth/token', (req, res) => {
   });
 });
 
-// === Middleware para validar token JWT local ===
+// Middleware para validar token JWT local
 function authenticate(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader?.split(' ')[1];
@@ -46,7 +47,7 @@ function authenticate(req, res, next) {
   }
 }
 
-// === Função para autenticar com a Paytime ===
+// Função para obter token da Paytime (com cache)
 let cachedToken = null;
 let tokenExpiresAt = null;
 
@@ -70,9 +71,6 @@ async function getPaytimeToken() {
 
   const response = await axios.post(process.env.PAYTIME_LOGIN_URL, loginPayload, { headers });
 
- // Aqui você coloca para ver o que está vindo na resposta:
-  console.log('Resposta Paytime login:', response.data);
-  
   const token = response.data?.token || response.data?.access_token;
 
   if (!token) throw new Error('Token não retornado pela Paytime');
@@ -84,25 +82,35 @@ async function getPaytimeToken() {
   return token;
 }
 
-// === Endpoint exemplo de proxy protegido ===
-app.get('/cpf/:numero', authenticate, async (req, res) => {
+// Proxy "cego" para chamadas à Paytime protegidas pela autenticação local
+app.use('/paytime', authenticate, async (req, res) => {
   try {
-    const token = await getPaytimeToken();
+    const paytimeToken = await getPaytimeToken();
 
-    const response = await axios.get(`${process.env.PAYTIME_API_BASE}/cpf/${req.params.numero}`, {
+    // Remove o /paytime do início para formar a URL da Paytime
+    const paytimePath = req.originalUrl.replace(/^\/paytime/, '');
+
+    // Faz a requisição para Paytime, repassando método, body, query e headers básicos
+    const response = await axios({
+      method: req.method,
+      url: `${process.env.PAYTIME_API_BASE}${paytimePath}`,
       headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json'
-      }
+        Authorization: `Bearer ${paytimeToken}`,
+        Accept: 'application/json',
+      },
+      data: req.body,
+      params: req.query
     });
 
     res.status(response.status).json(response.data);
-  } catch (err) {
-    console.error('Erro ao consultar Paytime:', err.response?.data || err.message);
-    res.status(err.response?.status || 500).json({ error: 'Erro ao consultar fornecedor' });
+
+  } catch (error) {
+    console.error('Erro no proxy Paytime:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({ error: 'Erro ao acessar Paytime' });
   }
 });
 
+// Porta do servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`API proxy rodando na porta ${PORT}`);
