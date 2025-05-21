@@ -39,6 +39,9 @@ function authenticate(req, res, next) {
 
   if (!token) return res.status(401).json({ error: 'Token ausente' });
 
+  console.log('Token: ', token);
+  console.log('JWT_SECRET: ', JWT_SECRET);
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     // Ajuste para pegar client_id ou sub, ou outro campo que usar no token
