@@ -1,128 +1,106 @@
-require('dotenv').config();
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const { initDb, validarCliente } = require('./db');
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'chave_padrao';
-
 app.use(express.json());
 
-initDb()
-  .then(() => console.log('Banco de dados iniciado.'))
-  .catch(console.error);
+const CLIENTS = {
+  'cliente123': 'segredo456',
+  'clienteTest': 'senhaSegura'
+};
 
-// 🔐 Autenticação do cliente
-app.post('/auth', async (req, res) => {
-  const { clientID, clientSecret } = req.body;
+const JWT_SECRET = process.env.JWT_SECRET;
 
-  if (!clientID || !clientSecret) {
-    return res.status(400).json({ error: 'clientID e clientSecret são obrigatórios.' });
+// === Autenticação local (client_id e client_secret) ===
+app.post('/auth/token', (req, res) => {
+  const { client_id, client_secret } = req.body;
+
+  if (!client_id || !client_secret || CLIENTS[client_id] !== client_secret) {
+    return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
-  const client = await validarCliente(clientID, clientSecret);
-  if (!client) return res.status(401).json({ error: 'Credenciais inválidas.' });
+  const token = jwt.sign({ client_id }, JWT_SECRET, { expiresIn: '1h' });
 
-  const payload = {
-    clientID: client.client_id,
-    representativeID: client.representativeID
-  };
-
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '1h' });
-
-  res.json({ token, clientInfo: payload });
+  res.json({
+    access_token: token,
+    token_type: 'Bearer',
+    expires_in: 3600
+  });
 });
 
-// 🛡️ Middleware de autenticação
-function autenticarJWT(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token ausente ou inválido.' });
-  }
+// === Middleware para validar token JWT local ===
+function authenticate(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.split(' ')[1];
 
-  const token = auth.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token ausente' });
+
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.client_id = decoded.client_id;
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Token expirado ou inválido.' });
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
   }
 }
 
-// 🔄 Login na Paytime
-
-let cachedToken = {
-  token: null,
-  expiresAt: null
-};
+// === Função para autenticar com a Paytime ===
+let cachedToken = null;
+let tokenExpiresAt = null;
 
 async function getPaytimeToken() {
   const now = Date.now();
 
-  if (cachedToken.token && cachedToken.expiresAt && now < cachedToken.expiresAt) {
-    return cachedToken.token; // ✅ Token ainda válido
+  if (cachedToken && tokenExpiresAt && now < tokenExpiresAt) {
+    return cachedToken;
   }
 
-  const response = await axios.post(process.env.PAYTIME_LOGIN_URL, {
+  const loginPayload = {
     "integration-key": process.env.PAYTIME_INTEGRATION_KEY,
     "authentication-key": process.env.PAYTIME_AUTH_KEY,
     "x-token": process.env.PAYTIME_X_TOKEN
-  }, {
-    headers: {
-      'accept': 'application/json',
-      'content-type': 'application/json'
-    }
-  });
-
-  const token = response.data.token;
-  const expiresInSeconds = response.data.expires_in || 3600; // fallback de 1h
-
-  cachedToken = {
-    token,
-    expiresAt: now + expiresInSeconds * 1000
   };
+
+  const headers = {
+    'accept': 'application/json',
+    'content-type': 'application/json'
+  };
+
+  const response = await axios.post(process.env.PAYTIME_LOGIN_URL, loginPayload, { headers });
+
+  const token = response.data?.token || response.data?.access_token;
+
+  if (!token) throw new Error('Token não retornado pela Paytime');
+
+  // Cache token por 50 minutos
+  cachedToken = token;
+  tokenExpiresAt = now + 50 * 60 * 1000;
 
   return token;
 }
 
-
-
-
-
-// 🔁 Proxy cego genérico
-app.all('/proxy/*', autenticarJWT, async (req, res) => {
+// === Endpoint exemplo de proxy protegido ===
+app.get('/cpf/:numero', authenticate, async (req, res) => {
   try {
-    const targetPath = req.originalUrl.replace('/proxy', '');
-    const fullUrl = `${process.env.PAYTIME_API_BASE}${targetPath}`;
+    const token = await getPaytimeToken();
 
-    const paytimeToken = await getPaytimeToken();
-
-    const headers = {
-      ...req.headers,
-      authorization: `Bearer ${paytimeToken}`
-    };
-
-    delete headers['host'];
-    delete headers['content-length'];
-
-    const response = await axios({
-      method: req.method,
-      url: fullUrl,
-      data: req.body,
-      headers
+    const response = await axios.get(`${process.env.PAYTIME_API_BASE}/cpf/${req.params.numero}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json'
+      }
     });
 
-    res.status(response.status).send(response.data);
-  } catch (error) {
-    const status = error.response?.status || 500;
-    const data = error.response?.data || { error: 'Erro inesperado no proxy.' };
-    console.error(data);
-    res.status(status).json(data);
+    res.status(response.status).json(response.data);
+  } catch (err) {
+    console.error('Erro ao consultar Paytime:', err.response?.data || err.message);
+    res.status(err.response?.status || 500).json({ error: 'Erro ao consultar fornecedor' });
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`API proxy rodando na porta ${PORT}`);
 });
