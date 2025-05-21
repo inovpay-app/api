@@ -70,6 +70,9 @@ async function getPaytimeToken() {
 
   const response = await axios.post(process.env.PAYTIME_LOGIN_URL, loginPayload, { headers });
 
+ // Aqui você coloca para ver o que está vindo na resposta:
+  console.log('Resposta Paytime login:', response.data);
+  
   const token = response.data?.token || response.data?.access_token;
 
   if (!token) throw new Error('Token não retornado pela Paytime');
