@@ -46,6 +46,9 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     // Ajuste para pegar client_id ou sub, ou outro campo que usar no token
     req.client_id = decoded.client_id || decoded.sub;
+    console.log('Requisicao Cilent ID : ', req.client_id);
+    console.log('Decode Cliente ID: ', decoded.client_id);
+    console.log('Decode Sub ID: ', decoded.sub);
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado' });
