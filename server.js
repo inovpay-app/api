@@ -2,7 +2,6 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 require('dotenv').config();
-console.log('JWT_SECRET:', process.env.JWT_SECRET);
 
 const app = express();
 app.use(express.json());
@@ -38,16 +37,6 @@ function authenticate(req, res, next) {
   const token = authHeader?.split(' ')[1];
 
   if (!token) return res.status(401).json({ error: 'Token ausente' });
-
-  console.log('Token: ', token);
-  console.log('JWT_SECRET: ', JWT_SECRET);
-
-
-    const deca = jwt.verify(token, JWT_SECRET);
-    console.log('Requisicao : ', req);
-    console.log('Requisicao Cilent ID : ', req.client_id);
-    console.log('Decode Cliente ID: ', deca.client_id);
-    console.log('Decode Sub ID: ', deca.sub);
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
