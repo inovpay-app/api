@@ -28,7 +28,7 @@ app.post('/auth/token', (req, res) => {
   res.json({
     access_token: token,
     token_type: 'Bearer',
-    expires_in: 3600
+    expires_in: 360000
   });
 });
 
