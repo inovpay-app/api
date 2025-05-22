@@ -48,6 +48,10 @@ function authenticate(req, res, next) {
   }
 }
 
+// Declaração de variáveis de cache
+let cachedToken = null;
+let tokenExpiresAt = 0;
+
 // Função para obter token da Paytime (com cache)
 async function getPaytimeToken() {
   const now = Date.now();
@@ -87,6 +91,8 @@ async function getPaytimeToken() {
 
 
 // Proxy "cego" para chamadas à Paytime protegidas pela autenticação local
+
+
 app.use('/paytime', authenticate, async (req, res) => {
   try {
     const paytimeToken = await getPaytimeToken();
