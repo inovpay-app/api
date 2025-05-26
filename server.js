@@ -73,7 +73,11 @@ async function getPaytimeToken() {
 
   const PAYTIME_LOGIN_URL = 'https://api.sandbox.paytime.com.br/v1/auth/login';
 
+  console.log('Login Payload:', loginPayload);
+
   const response = await axios.post(PAYTIME_LOGIN_URL, loginPayload, { headers });
+
+  console.log('Resposta completa da Paytime:', response.data);
 
   const token = response.data?.token || response.data?.access_token;
 
