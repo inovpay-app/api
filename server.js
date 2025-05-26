@@ -61,10 +61,10 @@ async function getPaytimeToken() {
   }
 
   const loginPayload = {
-    "integration-key": process.env.PAYTIME_INTEGRATION_KEY,
-    "authentication-key": process.env.PAYTIME_AUTH_KEY,
-    "x-token": process.env.PAYTIME_X_TOKEN
-  };
+    "integration-key":"38a5565e-5b7c-4bf7-b0de-e8970e42ff7d",
+    "authentication-key":"5e35eacc-81f2-4145-a661-2acdffd1e679",
+    "x-token":"1c4152ea-7bee-4e5a-823d-7b0077b038a8"
+};
 
   const headers = {
     'accept': 'application/json',
