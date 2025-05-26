@@ -2,12 +2,18 @@ const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
 
-require('dotenv').config();
+const https = require('https');
 
 const app = express();
 app.use(bodyParser.json());
 
-const BASE_URL = process.env.BASE_URL || 'https://gatewayinovpay.bubbleapps.io/version-test/api/1.1/wf';
+// URL hardcoded
+const BASE_URL = 'https://gatewayinovpay.bubbleapps.io/version-test/api/1.1/wf';
+
+// ⚠️ Contorno para erro de certificado expirado
+const agent = new https.Agent({  
+  rejectUnauthorized: false
+});
 
 app.all('*', async (req, res) => {
     try {
@@ -15,7 +21,8 @@ app.all('*', async (req, res) => {
             method: req.method,
             url: `${BASE_URL}${req.path}`,
             headers: { ...req.headers },
-            data: req.body
+            data: req.body,
+            httpsAgent: agent  // descomente se estiver com erro de SSL
         });
 
         res.status(response.status).send(response.data);
@@ -36,17 +43,14 @@ app.all('*', async (req, res) => {
                 });
             }
 
-            // Demais erros do Bubble: repassa
             return res.status(status).send(data);
         } else if (error.request) {
-            // Sem resposta: problema de rede ou timeout
             console.error('Sem resposta do Bubble:', error.message);
             return res.status(502).send({
                 error: 'Sem resposta do servidor Bubble',
                 details: error.message
             });
         } else {
-            // Outro erro: configuração ou runtime
             console.error('Erro no proxy:', error.message);
             return res.status(500).send({
                 error: 'Erro interno no proxy',
