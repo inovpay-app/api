@@ -7,13 +7,14 @@ const https = require('https');
 const app = express();
 app.use(bodyParser.json());
 
+const agent = new https.Agent({
+    rejectUnauthorized: false,
+    servername: 'gatewayinovpay.bubbleapps.io'
+});
+
 // URL hardcoded
 const BASE_URL = 'https://gatewayinovpay.bubbleapps.io/version-test/api/1.1/wf';
 
-// ⚠️ Contorno para erro de certificado expirado
-const agent = new https.Agent({  
-  rejectUnauthorized: false
-});
 
 app.all('*', async (req, res) => {
     try {
